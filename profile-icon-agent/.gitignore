@@ -1,0 +1,8 @@
+output.txt
+node_modules
+dist
+client_secret.json
+.mastra
+.env.development
+.env
+*.db
