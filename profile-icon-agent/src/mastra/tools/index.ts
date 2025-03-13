@@ -105,6 +105,35 @@ async function cropAndUploadFaceImage(photoUrl: string, faceData: { coordinates:
   return await uploadToCloudinary(processedImage);
 }
 
+async function sendTelexHeadshot(headshotUrl: string) {
+  if (!TELEX_WEBHOOK_URL) {
+      console.error("❌ Telex Webhook URL is missing!");
+      return;
+  }
+
+  const payload = {
+      event_name: "Profile Icon Ready",
+      username: "EstherBot",
+      status: "success",
+      message: `/profile Your AI-generated profile icon is ready!\n\n${headshotUrl}` // ✅ Use a text command with the URL
+  };
+
+  try {
+      const response = await axios.post(TELEX_WEBHOOK_URL, payload, {
+          headers: { "Content-Type": "application/json" }
+      });
+      console.log("✅ Telex Headshot Sent:", response.data);
+    } catch (error) {
+      if (error instanceof Error) {
+          console.error('Error processing the image:', error.message);
+          throw new Error(`Failed to process the image: ${error.message}`);
+      } else {
+          console.error('Unknown error:', error);
+          throw new Error('An unknown error occurred while processing the image.');
+      }
+  }
+}
+
 // Mastra tool integration
 export const profileIconTool = createTool({
   id: 'generate-headshot',
@@ -127,14 +156,7 @@ export const profileIconTool = createTool({
       const headshotUrl = await cropAndUploadFaceImage(photoUrl, faceData);
 
       // Send to Telex
-      if (!TELEX_WEBHOOK_URL) {
-        throw new Error("TELEX_WEBHOOK_URL is not defined. Please set it in your environment variables.");
-      }
-            
-      await axios.post(TELEX_WEBHOOK_URL, {
-        message: 'Here is your AI-generated profile icon!',
-        imageUrl: headshotUrl,
-      });
+      await sendTelexHeadshot(headshotUrl);
 
       return {
         headshotUrl: headshotUrl,
