@@ -7,7 +7,7 @@
       "descriptions": {
         "app_name": "Profile Icon Generator",
         "app_description": "This integration allows users to receive AI-generated profile icons via the Telex channel",
-        "app_logo": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRe5fhlpTPx6xq1MtrfLPVkpuL93u2IkHDyMQ&s" 
+        "app_logo": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRe5fhlpTPx6xq1MtrfLPVkpuL93u2IkHDyMQ&s",
         "app_url": "https://profile-icon-agent.onrender.com",
         "background_color": "#fff"
       },
@@ -28,6 +28,6 @@
           "default": "5"
         }
       ],
-      "target_url": "https://profile-icon-agent.onrender.com/agents/profileIconAgent/chat",
+      "target_url": "https://profile-icon-agent.onrender.com/agents/profileIconAgent/chat"
     }
   }
