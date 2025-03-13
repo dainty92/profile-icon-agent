@@ -12,7 +12,7 @@
         "background_color": "#fff"
       },
       "is_active": true,
-      "integration_type": "modifier",
+      "integration_type": "output",
       "integration_category": "AI & Machine Learning",
       "key_features": [
         "AI-generated profile icons",
@@ -22,13 +22,12 @@
       "author": "EstherandDomfa",
       "settings": [
         {
-          "label": "profile-icon-agent",
-          "type": "text",
+          "label": "notification",
+          "type": "checkbox",
           "required": true,
-          "default": "Instant"
+          "default": "5"
         }
       ],
       "target_url": "https://profile-icon-agent.onrender.com/agents/profileIconAgent/chat",
-      "tick_url": "https://profile-icon-agent.onrender.com"
     }
   }
