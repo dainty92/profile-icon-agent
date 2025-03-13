@@ -12,7 +12,7 @@
         "background_color": "#fff"
       },
       "is_active": true,
-      "integration_type": "output",
+      "integration_type": "modifier",
       "integration_category": "AI & Machine Learning",
       "key_features": [
         "AI-generated profile icons",
@@ -29,5 +29,6 @@
         }
       ],
       "target_url": "https://profile-icon-agent.onrender.com/agents/profileIconAgent/chat",
+      "tick_url": "https://profile-icon-agent.onrender.com"
     }
   }
