@@ -6,3 +6,4 @@ client_secret.json
 .env.development
 .env
 *.db
+
