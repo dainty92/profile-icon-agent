@@ -2,15 +2,22 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import axios from 'axios';
 import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import cloudinary from 'cloudinary';
 
 // Imagga API credentials
 const apiKey = 'acc_709326036b0cbea';
 const apiSecret = 'e053ca0c7833ad01a5235cf002dd3e4f';
 
-// Function to detect face using Imagga API and return adjusted cropping data with padding
+const TELEX_WEBHOOK_URL = process.env.TELEX_WEBHOOK_URL;
+
+// Configure Cloudinary
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Function to detect face using Imagga API
 async function detectFaceWithPadding(photoUrl: string, padding: number = 40) {
   const apiUrl = `https://api.imagga.com/v2/faces/detections?image_url=${encodeURIComponent(photoUrl)}`;
 
@@ -22,22 +29,13 @@ async function detectFaceWithPadding(photoUrl: string, padding: number = 40) {
   });
 
   const faces = response.data.result.faces;
-
-  // Log the response from Imagga for debugging
-  console.log('Imagga API Face Detection Response:', faces);
-
   if (!faces || faces.length === 0) {
     throw new Error('No face detected in the image');
   }
 
-  // Assume the first face detection result is the one we need
   const face = faces[0];
   const { coordinates } = face;
 
-  // Log the face data to verify it has valid values
-  console.log('Detected face data:', face);
-
-  // Validate the bounding box coordinates
   if (
     coordinates.xmin === undefined || coordinates.ymin === undefined ||
     coordinates.xmax === undefined || coordinates.ymax === undefined
@@ -48,15 +46,32 @@ async function detectFaceWithPadding(photoUrl: string, padding: number = 40) {
   return { coordinates, padding };
 }
 
-// Function to crop, resize to a square, and save the image locally with padding and improved quality
-async function cropAndSaveFaceImageWithPadding(photoUrl: string, faceData: { coordinates: any, padding: number }) {
+// Function to upload the image to Cloudinary
+async function uploadToCloudinary(imageBuffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.v2.uploader.upload_stream(
+      { resource_type: 'image', folder: 'profile_icons' },
+      (error, result) => {
+        if (error || !result?.secure_url) {
+          return reject(new Error('Cloudinary upload failed'));
+        }
+        resolve(result.secure_url);
+      }
+    );
+
+    uploadStream.end(imageBuffer);
+  });
+}
+
+// Function to process image
+async function cropAndUploadFaceImage(photoUrl: string, faceData: { coordinates: any, padding: number }) {
   const { coordinates, padding } = faceData;
 
-  // Download the image as a buffer
+  // Download image
   const imageResponse = await axios.get(photoUrl, { responseType: 'arraybuffer' });
   const imageBuffer = Buffer.from(imageResponse.data, 'binary');
 
-  // Get image metadata to dynamically fetch the image dimensions
+  // Get image metadata
   const metadata = await sharp(imageBuffer).metadata();
   const imageWidth = metadata.width || 0;
   const imageHeight = metadata.height || 0;
@@ -65,56 +80,32 @@ async function cropAndSaveFaceImageWithPadding(photoUrl: string, faceData: { coo
     throw new Error('Unable to retrieve image dimensions');
   }
 
-  // Calculate width, height, and top-left position based on bounding box
-  let x = Math.max(coordinates.xmin - padding, 0);  // Ensure x doesn't go negative
-  let y = Math.max(coordinates.ymin - padding, 0);  // Ensure y doesn't go negative
+  // Compute cropping dimensions
+  let x = Math.max(coordinates.xmin - padding, 0);
+  let y = Math.max(coordinates.ymin - padding, 0);
   let width = coordinates.xmax - coordinates.xmin + 2 * padding;
   let height = coordinates.ymax - coordinates.ymin + 2 * padding;
 
-  // Ensure the cropping dimensions don't exceed the image boundaries
-  if (x + width > imageWidth) {
-    width = imageWidth - x;
-  }
-  if (y + height > imageHeight) {
-    height = imageHeight - y;
-  }
+  // Ensure within image boundaries
+  width = Math.min(width, imageWidth - x);
+  height = Math.min(height, imageHeight - y);
 
-  // Log the adjusted cropping data
-  console.log(`Adjusted cropping data with padding: x=${x}, y=${y}, width=${width}, height=${height}`);
-
-  // Determine the largest dimension to make the image a square
+  // Determine max dimension for square crop
   const maxDimension = Math.max(width, height);
 
-  // Use sharp to crop the image, then resize it to a perfect square with high-quality interpolation
-  const croppedAndSquaredImage = await sharp(imageBuffer)
-    .extract({
-      left: x,
-      top: y,
-      width,
-      height,
-    })
-    .resize(maxDimension, maxDimension, {
-      fit: 'cover',              // Ensure it is resized to a square by covering the whole area
-      kernel: sharp.kernel.lanczos3,  // Use high-quality interpolation (Lanczos3)
-    })
-    .sharpen()                    // Add sharpening to preserve detail
-    .jpeg({ quality: 90 })        // Save as high-quality JPEG with reduced compression artifacts
+  // Process image
+  const processedImage = await sharp(imageBuffer)
+    .extract({ left: x, top: y, width, height })
+    .resize(maxDimension, maxDimension, { fit: 'cover', kernel: sharp.kernel.lanczos3 })
+    .sharpen()
+    .jpeg({ quality: 90 })
     .toBuffer();
 
-  // Get the current file's directory
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-
-  // Define the file path for saving the image
-  const savePath = path.join(__dirname, 'cropped-face-image-square-high-quality.jpg');
-
-  // Save the cropped and resized image to the local machine
-  fs.writeFileSync(savePath, croppedAndSquaredImage);
-
-  return savePath;
+  // Upload to Cloudinary
+  return await uploadToCloudinary(processedImage);
 }
 
-// Mastra tool integration using Imagga with padding and high-quality image processing
+// Mastra tool integration
 export const profileIconTool = createTool({
   id: 'generate-headshot',
   description: 'Generate a cropped headshot from an uploaded profile photo using Imagga API and resize it to a square with padding',
@@ -129,16 +120,25 @@ export const profileIconTool = createTool({
     const { photoUrl } = context;
 
     try {
-      // Detect face and get the bounding box for cropping with padding
+      // Detect face
       const faceData = await detectFaceWithPadding(photoUrl);
 
-      // Crop, resize to a square, and save the image locally with improved quality
-      const savedImagePath = await cropAndSaveFaceImageWithPadding(photoUrl, faceData);
+      // Crop & upload image
+      const headshotUrl = await cropAndUploadFaceImage(photoUrl, faceData);
 
-      // Return the path to the saved image
+      // Send to Telex
+      if (!TELEX_WEBHOOK_URL) {
+        throw new Error("TELEX_WEBHOOK_URL is not defined. Please set it in your environment variables.");
+      }
+            
+      await axios.post(TELEX_WEBHOOK_URL, {
+        message: 'Here is your AI-generated profile icon!',
+        imageUrl: headshotUrl,
+      });
+
       return {
-        headshotUrl: savedImagePath,
-        message: 'Profile icon cropped with padding, resized to a square, and saved successfully',
+        headshotUrl: headshotUrl,
+        message: 'Profile icon processed and uploaded successfully!',
       };
     } catch (error: any) {
       console.error('Error processing the image:', error.message);
