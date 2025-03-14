@@ -20,14 +20,14 @@
         "Uploads processed images to a cloud storage service.",
         "Returns a shareable URL for the cropped image."
       ],
+      "permissions": {
+        "monitoring_user": {
+          "always_online": false,
+          "display_name": "Profile Image Monitor"
+        }
+      },
       "author": "EstherandDomfa",
       "settings": [
-        {
-          "label": "notification",
-          "type": "checkbox",
-          "required": true,
-          "default": "5"
-        }
       ],
       "target_url": "https://profile-icon-agent.onrender.com/agents/profileIconAgent/chat"
     }
